@@ -91,6 +91,21 @@ Or run API locally (with Qdrant already running):
 uvicorn api.main:app --reload
 ```
 
+## Troubleshooting
+
+If Docker Compose returns a Qdrant connection error, rebuild after pulling the latest config:
+```bash
+docker compose up --build
+```
+
+Inside Docker, the API uses `QDRANT_URL=http://qdrant:6333`. For local non-Docker runs, use `QDRANT_URL=http://localhost:6333`.
+
+If `/query` returns an OpenAI quota or billing error, the API key is valid enough to call OpenAI but has no available quota. Use a key with billing enabled, or switch embeddings to a local model to reduce OpenAI usage:
+```bash
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+```
+
 ## Ingest Documents
 
 ### API ingestion options

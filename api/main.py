@@ -85,6 +85,33 @@ class AppServices:
 SERVICES = AppServices()
 
 
+def _initialize_services_or_raise() -> None:
+    try:
+        SERVICES.initialize()
+    except Exception as exc:
+        LOGGER.exception("Service initialization failed")
+        raise HTTPException(status_code=503, detail=_public_error_detail(exc)) from exc
+
+
+def _public_error_detail(exc: Exception) -> str:
+    message = str(exc)
+    lowered = message.lower()
+
+    if "insufficient_quota" in lowered or "too many requests" in lowered or "quota" in lowered:
+        return (
+            "OpenAI request failed because the API key has insufficient quota or billing is not enabled. "
+            "Use a key with available quota, or switch embeddings to a local model."
+        )
+
+    if "connection refused" in lowered or "qdrant" in lowered:
+        return (
+            "Qdrant is unavailable. If you are using Docker Compose, make sure the API uses "
+            "QDRANT_URL=http://qdrant:6333 and restart with docker compose up --build."
+        )
+
+    return "The request failed inside the RAG service. Check API logs for the full traceback."
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc))
@@ -96,7 +123,7 @@ async def ingest(
     url: str | None = Form(default=None),
     arxiv_id: str | None = Form(default=None),
 ) -> IngestResponse:
-    SERVICES.initialize()
+    _initialize_services_or_raise()
     assert SERVICES.pipeline is not None
 
     choices = [file is not None, bool(url), bool(arxiv_id)]
@@ -107,19 +134,35 @@ async def ingest(
         suffix = Path(file.filename or "").suffix.lower()
         file_bytes = await file.read()
         if suffix == ".pdf":
-            result = SERVICES.pipeline.ingest_pdf(file_bytes=file_bytes, source_name=file.filename or "uploaded.pdf")
+            try:
+                result = SERVICES.pipeline.ingest_pdf(file_bytes=file_bytes, source_name=file.filename or "uploaded.pdf")
+            except Exception as exc:
+                LOGGER.exception("PDF ingestion failed")
+                raise HTTPException(status_code=503, detail=_public_error_detail(exc)) from exc
         elif suffix == ".docx":
-            result = SERVICES.pipeline.ingest_docx(file_bytes=file_bytes, source_name=file.filename or "uploaded.docx")
+            try:
+                result = SERVICES.pipeline.ingest_docx(file_bytes=file_bytes, source_name=file.filename or "uploaded.docx")
+            except Exception as exc:
+                LOGGER.exception("DOCX ingestion failed")
+                raise HTTPException(status_code=503, detail=_public_error_detail(exc)) from exc
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type. Use .pdf or .docx")
         return IngestResponse(source_doc=result.source_doc, chunks_created=result.chunks_created)
 
     if url:
-        result = SERVICES.pipeline.ingest_url(url)
+        try:
+            result = SERVICES.pipeline.ingest_url(url)
+        except Exception as exc:
+            LOGGER.exception("URL ingestion failed")
+            raise HTTPException(status_code=503, detail=_public_error_detail(exc)) from exc
         return IngestResponse(source_doc=result.source_doc, chunks_created=result.chunks_created)
 
     if arxiv_id:
-        result = SERVICES.pipeline.ingest_arxiv(arxiv_id)
+        try:
+            result = SERVICES.pipeline.ingest_arxiv(arxiv_id)
+        except Exception as exc:
+            LOGGER.exception("arXiv ingestion failed")
+            raise HTTPException(status_code=503, detail=_public_error_detail(exc)) from exc
         return IngestResponse(source_doc=result.source_doc, chunks_created=result.chunks_created)
 
     raise HTTPException(status_code=400, detail="No ingestion source provided")
@@ -127,11 +170,15 @@ async def ingest(
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
-    SERVICES.initialize()
+    _initialize_services_or_raise()
     if SERVICES.agent is None:
         raise HTTPException(status_code=500, detail="Agent not initialized")
 
-    result = SERVICES.agent.run(request.question)
+    try:
+        result = SERVICES.agent.run(request.question)
+    except Exception as exc:
+        LOGGER.exception("Query failed")
+        raise HTTPException(status_code=503, detail=_public_error_detail(exc)) from exc
     return _query_response_from_result(result)
 
 
@@ -165,18 +212,23 @@ def _query_response_from_result(result: Any) -> QueryResponse:
 
 @app.post("/query/stream")
 def query_stream(request: QueryRequest) -> StreamingResponse:
-    SERVICES.initialize()
+    _initialize_services_or_raise()
     if SERVICES.agent is None:
         raise HTTPException(status_code=500, detail="Agent not initialized")
 
     def event_generator() -> Generator[str, None, None]:
-        for event in SERVICES.agent.stream(request.question):
-            event_name = event["event"]
-            data = event["data"]
-            if event_name == "final_result":
-                yield sse_event("final_answer", _query_response_from_result(data).model_dump(mode="json"))
-                continue
-            yield sse_event(event_name, data)
-        yield sse_event("done", {"ok": True})
+        try:
+            for event in SERVICES.agent.stream(request.question):
+                event_name = event["event"]
+                data = event["data"]
+                if event_name == "final_result":
+                    yield sse_event("final_answer", _query_response_from_result(data).model_dump(mode="json"))
+                    continue
+                yield sse_event(event_name, data)
+            yield sse_event("done", {"ok": True})
+        except Exception as exc:
+            LOGGER.exception("Streaming query failed")
+            yield sse_event("error", {"detail": _public_error_detail(exc)})
+            yield sse_event("done", {"ok": False})
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

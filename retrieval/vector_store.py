@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from config import get_settings
@@ -34,7 +35,7 @@ class QdrantVectorStore:
     def create_collection(self) -> None:
         from qdrant_client.http import models as qmodels
 
-        collections = {c.name for c in self.client.get_collections().collections}
+        collections = self._get_collections_with_retry()
         if self.collection_name in collections:
             return
 
@@ -42,6 +43,19 @@ class QdrantVectorStore:
             collection_name=self.collection_name,
             vectors_config=qmodels.VectorParams(size=self.vector_size, distance=self.distance),
         )
+
+    def _get_collections_with_retry(self) -> set[str]:
+        last_error: Exception | None = None
+        for attempt in range(1, 6):
+            try:
+                return {c.name for c in self.client.get_collections().collections}
+            except Exception as exc:
+                last_error = exc
+                LOGGER.warning("Qdrant collection lookup failed on attempt %s/5: %s", attempt, exc)
+                time.sleep(min(0.5 * attempt, 2.0))
+
+        assert last_error is not None
+        raise last_error
 
     def delete_collection(self) -> None:
         self.client.delete_collection(collection_name=self.collection_name)
