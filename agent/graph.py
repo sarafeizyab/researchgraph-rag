@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterator
 
 try:
     from langgraph.graph import END, StateGraph
@@ -66,8 +66,46 @@ class MultiHopGraphAgent:
 
     def run(self, question: str) -> QueryResult:
         start_total = time.perf_counter()
+        initial = self._initial_state(question)
 
-        initial: AgentState = {
+        if self._graph is None:
+            final_state = self._run_fallback(initial)
+        else:
+            final_state = self._graph.invoke(initial)
+
+        return self._build_query_result(final_state, start_total)
+
+    def stream(self, question: str) -> Iterator[dict[str, Any]]:
+        """Yield live node-level events for Server-Sent Events clients."""
+
+        start_total = time.perf_counter()
+        state = self._initial_state(question)
+
+        yield {"event": "start", "data": {"question": question}}
+
+        updates = self._decompose_node(state)
+        state = {**state, **updates}
+        yield {"event": "reasoning_step", "data": state["reasoning_trace"][-1]}
+
+        while True:
+            updates = self._retrieve_node(state)
+            state = {**state, **updates}
+            yield {"event": "reasoning_step", "data": state["reasoning_trace"][-1]}
+
+            updates = self._reflect_node(state)
+            state = {**state, **updates}
+            yield {"event": "reasoning_step", "data": state["reasoning_trace"][-1]}
+
+            if self._route_after_reflection(state) == "synthesize":
+                break
+
+        updates = self._synthesize_node(state)
+        state = {**state, **updates}
+        yield {"event": "reasoning_step", "data": state["reasoning_trace"][-1]}
+        yield {"event": "final_result", "data": self._build_query_result(state, start_total)}
+
+    def _initial_state(self, question: str) -> AgentState:
+        return {
             "original_question": question,
             "sub_queries": [],
             "current_query": question,
@@ -83,10 +121,7 @@ class MultiHopGraphAgent:
             "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
-        if self._graph is None:
-            final_state = self._run_fallback(initial)
-        else:
-            final_state = self._graph.invoke(initial)
+    def _build_query_result(self, final_state: AgentState, start_total: float) -> QueryResult:
         total_latency_ms = (time.perf_counter() - start_total) * 1000.0
 
         citations = [

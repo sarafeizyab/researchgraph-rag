@@ -1,0 +1,17 @@
+.*
+!.dockerignore
+!.env.example
+!.github/
+!.github/**
+!.gitignore
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+artifacts/
+build/
+dist/
+*.egg-info/

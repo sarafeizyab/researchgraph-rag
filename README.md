@@ -9,7 +9,7 @@ It combines:
 - reciprocal-rank fusion and cross-encoder reranking
 - multi-hop agentic reasoning with query decomposition and self-reflection
 - citation-grounded synthesis
-- API + streaming endpoint + evaluation + ablations
+- API + live step streaming + evaluation + ablations
 
 ## Why This Is Not a Simple Chatbot
 
@@ -69,9 +69,6 @@ researchgraph-rag/
 
 ## Setup
 
-Before publishing to GitHub, follow the account-safe instructions in
-[GIT_ACCOUNT_SETUP.md](GIT_ACCOUNT_SETUP.md).
-
 1. Create environment and install dependencies:
 ```bash
 python -m venv .venv
@@ -121,6 +118,8 @@ curl -N -X POST http://localhost:8000/query/stream \
   -H "Content-Type: application/json" \
   -d '{"question":"How do foundation models compare with task-specific genomics models for variant interpretation?"}'
 ```
+
+The streaming endpoint emits `start`, `reasoning_step`, `final_answer`, and `done` events as the agent progresses through decomposition, retrieval, reflection, and synthesis.
 
 ## Example Multi-Hop Output (shape)
 

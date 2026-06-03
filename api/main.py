@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from api.schemas import HealthResponse, IngestResponse, QueryRequest, QueryResponse
-from api.streaming import iter_reasoning_trace, sse_event
+from api.streaming import sse_event
 from config import get_settings
 from logging_utils import setup_logging
 
@@ -132,6 +132,10 @@ def query(request: QueryRequest) -> QueryResponse:
         raise HTTPException(status_code=500, detail="Agent not initialized")
 
     result = SERVICES.agent.run(request.question)
+    return _query_response_from_result(result)
+
+
+def _query_response_from_result(result: Any) -> QueryResponse:
     return QueryResponse(
         answer=result.answer,
         citations=[
@@ -166,35 +170,13 @@ def query_stream(request: QueryRequest) -> StreamingResponse:
         raise HTTPException(status_code=500, detail="Agent not initialized")
 
     def event_generator() -> Generator[str, None, None]:
-        yield sse_event("start", {"question": request.question})
-        result = SERVICES.agent.run(request.question)
-        for event in iter_reasoning_trace(result.reasoning_trace):
-            yield event
-        yield sse_event(
-            "final_answer",
-            {
-                "answer": result.answer,
-                "citations": [
-                    {
-                        "chunk_id": c.chunk_id,
-                        "source_doc": c.source_doc,
-                        "page": c.page,
-                        "section": c.section,
-                        "excerpt": c.excerpt,
-                    }
-                    for c in result.citations
-                ],
-                "metrics": {
-                    "total_latency_ms": result.metrics.total_latency_ms,
-                    "retrieval_latency_ms": result.metrics.retrieval_latency_ms,
-                    "reranking_latency_ms": result.metrics.reranking_latency_ms,
-                    "llm_latency_ms": result.metrics.llm_latency_ms,
-                    "hops": result.metrics.hops,
-                    "retrieved_chunks": result.metrics.retrieved_chunks,
-                    "token_usage": result.metrics.token_usage,
-                },
-            },
-        )
+        for event in SERVICES.agent.stream(request.question):
+            event_name = event["event"]
+            data = event["data"]
+            if event_name == "final_result":
+                yield sse_event("final_answer", _query_response_from_result(data).model_dump(mode="json"))
+                continue
+            yield sse_event(event_name, data)
         yield sse_event("done", {"ok": True})
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

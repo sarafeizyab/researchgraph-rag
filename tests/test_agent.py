@@ -81,3 +81,26 @@ def test_agent_multi_hop_state_transitions() -> None:
     assert retriever.queries == ["subquery-1", "subquery-2"]
     assert any(step["step"] == "decompose" for step in result.reasoning_trace)
     assert any(step["step"] == "reflect" for step in result.reasoning_trace)
+
+
+def test_agent_stream_yields_live_steps() -> None:
+    agent = MultiHopGraphAgent(
+        decomposer=_FakeDecomposer(),
+        retriever=_FakeRetriever(),
+        reflector=_FakeReflector(),
+        synthesizer=_FakeSynthesizer(),
+        max_hops=4,
+    )
+
+    events = list(agent.stream("compare transformers and cnns"))
+    event_names = [event["event"] for event in events]
+    step_names = [
+        event["data"]["step"]
+        for event in events
+        if event["event"] == "reasoning_step" and "step" in event["data"]
+    ]
+
+    assert event_names[0] == "start"
+    assert "final_result" in event_names
+    assert step_names[:3] == ["decompose", "retrieve", "reflect"]
+    assert step_names[-1] == "synthesize"
