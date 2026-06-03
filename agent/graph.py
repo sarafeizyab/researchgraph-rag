@@ -360,7 +360,18 @@ def build_default_agent(retriever: HybridRetriever) -> MultiHopGraphAgent:
     settings = get_settings()
     from agent.llm import LLMClient
 
-    llm = LLMClient(model=settings.openai_model, api_key=settings.openai_api_key)
+    llm = LLMClient(
+        provider=settings.llm_provider,
+        openai_model=settings.openai_model,
+        openai_api_key=settings.openai_api_key,
+        hf_token=settings.hf_token,
+        hf_endpoint_url=settings.hf_endpoint_url,
+        hf_endpoint_mode=settings.hf_endpoint_mode,
+        hf_model=settings.hf_model,
+        hf_max_new_tokens=settings.hf_max_new_tokens,
+        ollama_base_url=settings.ollama_base_url,
+        ollama_model=settings.ollama_model,
+    )
     return MultiHopGraphAgent(
         decomposer=QueryDecomposer(llm),
         retriever=retriever,

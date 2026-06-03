@@ -103,6 +103,21 @@ def _public_error_detail(exc: Exception) -> str:
             "Use a key with available quota, or switch embeddings to a local model."
         )
 
+    if "401" in lowered or "403" in lowered or "unauthorized" in lowered or "forbidden" in lowered:
+        return (
+            "The configured model provider rejected the request. Check the API token, endpoint URL, "
+            "and whether the selected model endpoint is running."
+        )
+
+    if "hf_endpoint_url" in lowered or "hugging face" in lowered:
+        return "Hugging Face endpoint configuration is incomplete. Set HF_ENDPOINT_URL and HF_TOKEN."
+
+    if "ollama" in lowered:
+        return (
+            "Ollama is unavailable. Start Ollama locally, pull the configured model, and make sure "
+            "OLLAMA_BASE_URL is reachable from the API container."
+        )
+
     if "connection refused" in lowered or "qdrant" in lowered:
         return (
             "Qdrant is unavailable. If you are using Docker Compose, make sure the API uses "

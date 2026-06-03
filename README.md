@@ -91,6 +91,72 @@ Or run API locally (with Qdrant already running):
 uvicorn api.main:app --reload
 ```
 
+## LLM Providers
+
+ResearchGraph-RAG supports three LLM backends:
+
+| Provider | Best for | Cost profile |
+|---|---|---|
+| OpenAI | strongest default quality and simplest setup | paid API |
+| Hugging Face Dedicated Endpoint | managed open-model deployment | paid endpoint, scale-to-zero capable |
+| Ollama | local/free development testing | local machine resources |
+
+### OpenAI
+
+```bash
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_openai_key
+OPENAI_MODEL=gpt-4.1-mini
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-3-small
+```
+
+### Hugging Face Dedicated Inference Endpoint
+
+Create a dedicated text-generation endpoint in Hugging Face, copy the endpoint URL, and set:
+
+```bash
+LLM_PROVIDER=huggingface
+HF_TOKEN=your_huggingface_token
+HF_ENDPOINT_URL=https://your-endpoint.endpoints.huggingface.cloud
+HF_ENDPOINT_MODE=text-generation
+HF_MODEL=Qwen/Qwen2.5-7B-Instruct
+HF_MAX_NEW_TOKENS=768
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+```
+
+If the endpoint exposes OpenAI-compatible chat completions, use:
+
+```bash
+HF_ENDPOINT_MODE=chat-completions
+HF_ENDPOINT_URL=https://your-endpoint.endpoints.huggingface.cloud
+```
+
+### Ollama
+
+Install Ollama and pull a model:
+
+```bash
+ollama pull llama3.1:8b
+```
+
+Then configure:
+
+```bash
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=llama3.1:8b
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+```
+
+For local non-Docker runs, use `OLLAMA_BASE_URL=http://localhost:11434`.
+
+### Future-Compatible TGI Path
+
+Self-hosted Hugging Face Text Generation Inference can be added later as another provider. It is operationally heavier than a dedicated endpoint, but the provider interface is already shaped to support a configurable model server.
+
 ## Troubleshooting
 
 If Docker Compose returns a Qdrant connection error, rebuild after pulling the latest config:
