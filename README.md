@@ -91,6 +91,9 @@ Or run API locally (with Qdrant already running):
 uvicorn api.main:app --reload
 ```
 
+Open `http://localhost:8000/docs` in a browser for the interactive API UI. The root URL
+`http://localhost:8000` returns a compact service summary.
+
 ## LLM Providers
 
 ResearchGraph-RAG supports three LLM backends:

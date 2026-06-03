@@ -11,6 +11,13 @@ class HealthResponse(BaseModel):
     timestamp: datetime
 
 
+class RootResponse(BaseModel):
+    service: str
+    status: str
+    docs_url: str
+    endpoints: list[str]
+
+
 class IngestResponse(BaseModel):
     source_doc: str
     chunks_created: int

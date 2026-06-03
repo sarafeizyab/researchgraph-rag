@@ -8,7 +8,7 @@ from typing import Any, Generator
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from api.schemas import HealthResponse, IngestResponse, QueryRequest, QueryResponse
+from api.schemas import HealthResponse, IngestResponse, QueryRequest, QueryResponse, RootResponse
 from api.streaming import sse_event
 from config import get_settings
 from logging_utils import setup_logging
@@ -109,6 +109,21 @@ def _public_error_detail(exc: Exception) -> str:
             "and whether the selected model endpoint is running."
         )
 
+    if "your-endpoint" in lowered or "still a placeholder" in lowered:
+        return "HF_ENDPOINT_URL is still the placeholder. Replace it with your running Hugging Face endpoint URL."
+
+    if "404 not found" in lowered and "hugging face endpoint" in lowered:
+        return (
+            "The Hugging Face endpoint returned 404. Check HF_ENDPOINT_MODE: use text-generation for "
+            "TGI-style endpoints or chat-completions for OpenAI-compatible endpoints."
+        )
+
+    if "name or service not known" in lowered and "hugging face endpoint" in lowered:
+        return (
+            "The Hugging Face endpoint host could not be resolved. Check that HF_ENDPOINT_URL is the exact "
+            "running endpoint URL from Hugging Face."
+        )
+
     if "hf_endpoint_url" in lowered or "hugging face" in lowered:
         return "Hugging Face endpoint configuration is incomplete. Set HF_ENDPOINT_URL and HF_TOKEN."
 
@@ -118,6 +133,12 @@ def _public_error_detail(exc: Exception) -> str:
             "OLLAMA_BASE_URL is reachable from the API container."
         )
 
+    if "vector dimension" in lowered or "expected dim" in lowered:
+        return (
+            "Qdrant collection vector size does not match the current embedding model. Use a new "
+            "QDRANT_COLLECTION name, or delete/recreate the existing collection after changing embeddings."
+        )
+
     if "connection refused" in lowered or "qdrant" in lowered:
         return (
             "Qdrant is unavailable. If you are using Docker Compose, make sure the API uses "
@@ -125,6 +146,16 @@ def _public_error_detail(exc: Exception) -> str:
         )
 
     return "The request failed inside the RAG service. Check API logs for the full traceback."
+
+
+@app.get("/", response_model=RootResponse)
+def root() -> RootResponse:
+    return RootResponse(
+        service="ResearchGraph-RAG",
+        status="ok",
+        docs_url="/docs",
+        endpoints=["GET /health", "POST /ingest", "POST /query", "POST /query/stream"],
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
