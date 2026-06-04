@@ -18,6 +18,16 @@ class RootResponse(BaseModel):
     endpoints: list[str]
 
 
+class RuntimeConfigResponse(BaseModel):
+    llm_provider: str
+    llm_model: str
+    embedding_provider: str
+    embedding_model: str
+    qdrant_collection: str
+    max_hops: int
+    hf_endpoint_mode: str | None = None
+
+
 class IngestResponse(BaseModel):
     source_doc: str
     chunks_created: int

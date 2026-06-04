@@ -15,6 +15,8 @@ services:
       QDRANT_URL: http://qdrant:6333
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./artifacts:/app/artifacts
     ports:
       - "8000:8000"
     depends_on:

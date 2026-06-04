@@ -6,9 +6,17 @@ from pathlib import Path
 from typing import Any, Generator
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
-from api.schemas import HealthResponse, IngestResponse, QueryRequest, QueryResponse, RootResponse
+from api.schemas import (
+    HealthResponse,
+    IngestResponse,
+    QueryRequest,
+    QueryResponse,
+    RootResponse,
+    RuntimeConfigResponse,
+)
 from api.streaming import sse_event
 from config import get_settings
 from logging_utils import setup_logging
@@ -16,6 +24,11 @@ from logging_utils import setup_logging
 LOGGER = logging.getLogger(__name__)
 
 app = FastAPI(title="ResearchGraph-RAG", version="0.1.0")
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+STATIC_DIR = FRONTEND_DIR / "static"
+
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 class AppServices:
@@ -148,13 +161,62 @@ def _public_error_detail(exc: Exception) -> str:
     return "The request failed inside the RAG service. Check API logs for the full traceback."
 
 
-@app.get("/", response_model=RootResponse)
-def root() -> RootResponse:
+def _root_response() -> RootResponse:
     return RootResponse(
         service="ResearchGraph-RAG",
         status="ok",
         docs_url="/docs",
-        endpoints=["GET /health", "POST /ingest", "POST /query", "POST /query/stream"],
+        endpoints=[
+            "GET /",
+            "GET /app",
+            "GET /api",
+            "GET /api/config",
+            "GET /health",
+            "POST /ingest",
+            "POST /query",
+            "POST /query/stream",
+        ],
+    )
+
+
+def _active_llm_model() -> str:
+    settings = get_settings()
+    if settings.llm_provider == "huggingface":
+        return settings.hf_model
+    if settings.llm_provider == "ollama":
+        return settings.ollama_model
+    return settings.openai_model
+
+
+@app.get("/", response_model=RootResponse)
+def root() -> RootResponse:
+    return _root_response()
+
+
+@app.get("/app", include_in_schema=False)
+def web_app() -> FileResponse:
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend assets are not installed")
+    return FileResponse(index_path)
+
+
+@app.get("/api", response_model=RootResponse)
+def api_root() -> RootResponse:
+    return _root_response()
+
+
+@app.get("/api/config", response_model=RuntimeConfigResponse)
+def runtime_config() -> RuntimeConfigResponse:
+    settings = get_settings()
+    return RuntimeConfigResponse(
+        llm_provider=settings.llm_provider,
+        llm_model=_active_llm_model(),
+        embedding_provider=settings.embedding_provider,
+        embedding_model=settings.embedding_model,
+        qdrant_collection=settings.qdrant_collection,
+        max_hops=settings.max_hops,
+        hf_endpoint_mode=settings.hf_endpoint_mode if settings.llm_provider == "huggingface" else None,
     )
 
 

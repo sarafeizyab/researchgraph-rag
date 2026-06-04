@@ -96,6 +96,9 @@ class LLMClient:
                 token_usage={},
             )
 
+        if "your-endpoint" in self.hf_endpoint_url:
+            raise RuntimeError("Hugging Face endpoint request failed: HF_ENDPOINT_URL is still a placeholder.")
+
         import httpx
 
         headers = {"Content-Type": "application/json"}
@@ -117,7 +120,7 @@ class LLMClient:
                         ],
                     }
                 else:
-                    url = self.hf_endpoint_url
+                    url = self._text_generation_url(self.hf_endpoint_url)
                     payload = {
                         "inputs": self._prompt_for_text_generation(prompt),
                         "parameters": {
@@ -204,6 +207,12 @@ class LLMClient:
         if normalized.endswith("/v1/chat/completions"):
             return normalized
         return f"{normalized}/v1/chat/completions"
+
+    def _text_generation_url(self, endpoint_url: str) -> str:
+        normalized = endpoint_url.rstrip("/")
+        if normalized.endswith("/generate"):
+            return normalized
+        return f"{normalized}/generate"
 
     def _extract_text_from_hf_response(self, data: Any) -> str:
         if isinstance(data, dict):

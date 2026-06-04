@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ResearchGraph-RAG</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <nav class="top-nav" aria-label="Primary navigation">
+          <a class="brand" href="/app">
+            <span class="brand-mark">RG</span>
+            <span>
+              <strong>ResearchGraph-RAG</strong>
+              <small>Multi-hop scientific retrieval</small>
+            </span>
+          </a>
+          <div class="nav-links">
+            <a href="/docs">API Docs</a>
+            <a href="/api">API Status</a>
+          </div>
+        </nav>
+
+        <section class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Hybrid retrieval + agentic reasoning + citations</p>
+            <h1>Ask research questions that need more than one document chunk.</h1>
+            <p class="hero-text">
+              Ingest papers, URLs, DOCX files, or arXiv IDs. The system decomposes the
+              question, retrieves evidence across dense and sparse indexes, reflects on
+              coverage, and synthesizes a citation-grounded answer.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#ask">Ask a question</a>
+              <a class="button button-secondary" href="#ingest">Add evidence</a>
+            </div>
+          </div>
+
+          <aside class="runtime-card" aria-label="Runtime configuration">
+            <div class="card-header">
+              <span class="status-dot" id="healthDot"></span>
+              <span id="healthLabel">Checking service</span>
+            </div>
+            <dl class="runtime-grid">
+              <div>
+                <dt>LLM Provider</dt>
+                <dd id="llmProvider">-</dd>
+              </div>
+              <div>
+                <dt>LLM Model</dt>
+                <dd id="llmModel">-</dd>
+              </div>
+              <div>
+                <dt>Embeddings</dt>
+                <dd id="embeddingModel">-</dd>
+              </div>
+              <div>
+                <dt>Collection</dt>
+                <dd id="collectionName">-</dd>
+              </div>
+            </dl>
+            <p class="runtime-note" id="runtimeNote">
+              Provider selection is controlled by the server environment.
+            </p>
+          </aside>
+        </section>
+      </header>
+
+      <main>
+        <section class="workflow">
+          <article class="step-card">
+            <span>01</span>
+            <h2>Ingest</h2>
+            <p>Load evidence from a PDF, DOCX file, URL, or arXiv paper.</p>
+          </article>
+          <article class="step-card">
+            <span>02</span>
+            <h2>Retrieve</h2>
+            <p>Fuse dense vector search with BM25 keyword recall.</p>
+          </article>
+          <article class="step-card">
+            <span>03</span>
+            <h2>Reason</h2>
+            <p>Decompose, reflect, re-query, and cite the final answer.</p>
+          </article>
+        </section>
+
+        <section class="grid-layout">
+          <article class="panel" id="ingest">
+            <div class="panel-heading">
+              <p class="eyebrow">Knowledge base</p>
+              <h2>Add evidence</h2>
+            </div>
+
+            <form id="ingestForm" class="stack">
+              <fieldset class="source-selector">
+                <legend>Source type</legend>
+                <label>
+                  <input type="radio" name="sourceType" value="arxiv" checked />
+                  <span>arXiv ID</span>
+                </label>
+                <label>
+                  <input type="radio" name="sourceType" value="url" />
+                  <span>URL</span>
+                </label>
+                <label>
+                  <input type="radio" name="sourceType" value="file" />
+                  <span>PDF/DOCX</span>
+                </label>
+              </fieldset>
+
+              <div class="field-group source-input" data-source-panel="arxiv">
+                <label for="arxivInput">arXiv ID</label>
+                <input id="arxivInput" name="arxiv_id" type="text" value="1706.03762" />
+                <small>Example: 1706.03762 for Attention Is All You Need.</small>
+              </div>
+
+              <div class="field-group source-input hidden" data-source-panel="url">
+                <label for="urlInput">URL</label>
+                <input id="urlInput" name="url" type="url" placeholder="https://arxiv.org/abs/1706.03762" />
+                <small>Use a public page with extractable text.</small>
+              </div>
+
+              <div class="field-group source-input hidden" data-source-panel="file">
+                <label for="fileInput">Upload file</label>
+                <input
+                  id="fileInput"
+                  name="file"
+                  type="file"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                />
+                <small>Supported file types: PDF and DOCX.</small>
+              </div>
+
+              <button class="button button-primary" id="ingestButton" type="submit">
+                Ingest source
+              </button>
+            </form>
+
+            <div class="result-box" id="ingestResult" aria-live="polite">
+              Add a source to build the retrieval index.
+            </div>
+          </article>
+
+          <article class="panel ask-panel" id="ask">
+            <div class="panel-heading">
+              <p class="eyebrow">Ask with evidence</p>
+              <h2>Run multi-hop QA</h2>
+            </div>
+
+            <form id="queryForm" class="stack">
+              <div class="field-group">
+                <label for="questionInput">Question</label>
+                <textarea id="questionInput" minlength="5" rows="6">Compare attention-based transformer models with earlier deep learning approaches and explain why attention helps with long-range dependencies.</textarea>
+              </div>
+              <div class="button-row">
+                <button class="button button-primary" id="streamButton" type="submit">
+                  Ask with live reasoning
+                </button>
+                <button class="button button-secondary" id="queryButton" type="button">
+                  Ask once
+                </button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <section class="answer-layout" aria-live="polite">
+          <article class="panel timeline-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Agent trace</p>
+              <h2>Reasoning timeline</h2>
+            </div>
+            <ol class="timeline" id="timeline">
+              <li class="empty-state">Run a streaming query to see each hop appear here.</li>
+            </ol>
+          </article>
+
+          <article class="panel answer-panel">
+            <div class="panel-heading">
+              <p class="eyebrow">Grounded response</p>
+              <h2>Answer</h2>
+            </div>
+            <div class="answer-body" id="answerBody">
+              Your generated answer, citations, and retrieval metrics will appear here.
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

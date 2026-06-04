@@ -1,3 +1,5 @@
+import pytest
+
 from agent.llm import LLMClient
 
 
@@ -33,6 +35,25 @@ def test_hugging_face_chat_completions_url() -> None:
     url = client._chat_completions_url("https://example.endpoints.huggingface.cloud")
 
     assert url == "https://example.endpoints.huggingface.cloud/v1/chat/completions"
+
+
+def test_hugging_face_text_generation_url() -> None:
+    client = LLMClient(provider="huggingface", openai_model="unused")
+
+    url = client._text_generation_url("https://example.endpoints.huggingface.cloud")
+
+    assert url == "https://example.endpoints.huggingface.cloud/generate"
+
+
+def test_hugging_face_placeholder_endpoint_raises() -> None:
+    client = LLMClient(
+        provider="huggingface",
+        openai_model="unused",
+        hf_endpoint_url="https://your-endpoint.endpoints.huggingface.cloud",
+    )
+
+    with pytest.raises(RuntimeError, match="placeholder"):
+        client.complete("question")
 
 
 def test_openai_missing_key_fallback() -> None:

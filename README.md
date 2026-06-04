@@ -9,7 +9,13 @@ It combines:
 - reciprocal-rank fusion and cross-encoder reranking
 - multi-hop agentic reasoning with query decomposition and self-reflection
 - citation-grounded synthesis
-- API + live step streaming + evaluation + ablations
+- browser UI + API + live step streaming + evaluation + ablations
+
+## UI Preview
+
+![ResearchGraph-RAG hero](docs/assets/researchgraph-hero.png)
+
+![ResearchGraph-RAG workflow](docs/assets/researchgraph-workflow.png)
 
 ## Why This Is Not a Simple Chatbot
 
@@ -45,6 +51,8 @@ flowchart TD
 
     N --> O[FastAPI /query]
     N --> P[FastAPI /query/stream SSE]
+    O --> R[Browser UI]
+    P --> R
 ```
 
 ## Repository Structure
@@ -55,6 +63,7 @@ researchgraph-rag/
 ├── retrieval/
 ├── agent/
 ├── api/
+├── frontend/
 ├── evaluation/
 ├── scripts/
 ├── tests/
@@ -91,8 +100,25 @@ Or run API locally (with Qdrant already running):
 uvicorn api.main:app --reload
 ```
 
-Open `http://localhost:8000/docs` in a browser for the interactive API UI. The root URL
-`http://localhost:8000` returns a compact service summary.
+Open `http://localhost:8000/app` in a browser for the ResearchGraph web UI.
+Open `http://localhost:8000/docs` for the interactive API documentation.
+
+## Browser UI
+
+The included browser UI is served directly by FastAPI, so there is no separate
+frontend install step. It supports:
+- arXiv, URL, PDF, and DOCX ingestion
+- standard `/query` requests
+- live `/query/stream` reasoning traces
+- answer, citation, sub-query, and latency-metric rendering
+- non-secret runtime visibility for the active LLM and embedding configuration
+
+Useful routes:
+- `http://localhost:8000` - compact JSON service summary
+- `http://localhost:8000/app` - browser UI
+- `http://localhost:8000/api` - compact JSON service summary
+- `http://localhost:8000/api/config` - non-secret runtime configuration
+- `http://localhost:8000/docs` - Swagger API docs
 
 ## LLM Providers
 
@@ -159,6 +185,13 @@ For local non-Docker runs, use `OLLAMA_BASE_URL=http://localhost:11434`.
 ### Future-Compatible TGI Path
 
 Self-hosted Hugging Face Text Generation Inference can be added later as another provider. It is operationally heavier than a dedicated endpoint, but the provider interface is already shaped to support a configurable model server.
+
+## Deployment Note
+
+This repository runs locally by default with Docker Compose. The Hugging Face
+Dedicated Endpoint may be backed by Hugging Face-managed AWS infrastructure, but
+the ResearchGraph API and Qdrant services are not deployed to AWS unless you add
+that deployment layer.
 
 ## Troubleshooting
 
